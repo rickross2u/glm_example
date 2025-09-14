@@ -33,13 +33,13 @@ rm(freMTPL2sev)  #remove original to avoid clutter
 ##define predictors#####
 
 #check for column type and values
-str(freMTPL2freq)
+str(freq)
 #categorical columns are already stored as factors. No need too convert.
 #normally in dataset you'd have categorical values as character, so to be consumed by GLM you'd need
 #to convert them to factors (usually by using "mutate(across(where(is.character), as.factor)")
 
 #list column names to identify predictors
-names(freMTPL2freq)
+names(freq)
 
 #define predictors
 predictors <- c("VehPower","VehAge","DrivAge","BonusMalus",
@@ -48,7 +48,19 @@ predictors <- c("VehPower","VehAge","DrivAge","BonusMalus",
 #FREQ MODEL#####
 #___________________________________________________________________________________________________
 
+glm_pois <- glm(
+  as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "),
+                   "+ offset(log(Exposure))")), #we're offsetting by log(Exposure) to account for the fact that the longer policy in force the more chance for a claim
+  data = freq,
+  family = poisson() #default link log
+)
+summary(glm_pois)
 
+dispersion_freq <- glm_pois$deviance / glm_pois$df.residual
+dispersion_freq # 0.243 - good
+
+freq_pred <- freq %>%
+  mutate(freq_hat = predict(glm_pois, type = "response") / Exposure)
 
 #SEV MODEL#####
 #___________________________________________________________________________________________________
