@@ -49,12 +49,13 @@ predictors <- c("VehPower","VehAge","DrivAge","BonusMalus",
 #___________________________________________________________________________________________________
 
 glm_pois <- glm(
-  as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "),
+  as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "), #our target is ClaimNb, hence it's at the beginning with "~" sign
                    "+ offset(log(Exposure))")), #we're offsetting by log(Exposure) to account for the fact that the longer policy in force the more chance for a claim
   data = freq,
   family = poisson() #default link log
 )
-summary(glm_pois)
+
+summary(glm_pois) #comprehensive summary of the model including predictor importance (p-values)
 
 dispersion_freq <- glm_pois$deviance / glm_pois$df.residual
 dispersion_freq # 0.243 - good
