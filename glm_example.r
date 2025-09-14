@@ -49,7 +49,7 @@ predictors <- c("VehPower","VehAge","DrivAge","BonusMalus",
 #___________________________________________________________________________________________________
 
 glm_pois <- glm(
-  as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "), #our target is ClaimNb, hence it's at the beginning with "~" sign
+  as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "), #our target is ClaimNb, hence it's at the beginning with "~" sign. We're also using paste() with "+" collapse to define our predictors. Feel free to run what's inside as.formula() it will return a string.
                    "+ offset(log(Exposure))")), #we're offsetting by log(Exposure) to account for the fact that the longer policy in force the more chance for a claim
   data = freq,
   family = poisson() #default link log
@@ -66,9 +66,45 @@ freq_pred <- freq %>%
 #SEV MODEL#####
 #___________________________________________________________________________________________________
 
+#we'll use freq table because it contains features that we need, and join it with our severity table by IDpol
+#first let's make sure we don't have any duplicated rows in freq data
+freq %>% 
+  duplicated() %>% 
+  sum() #result is 0, so no duplicated rows
 
+#then join severity data to our features
+sev_full <- sev %>%
+  inner_join(freq, by = "IDpol") %>%
+  filter(ClaimAmount > 0)
+
+glm_sev <- glm(
+  as.formula(paste("ClaimAmount ~", paste(predictors, collapse = " + "))), #note that here we don't need to offset our Exposures since we model severity per claim that already happen and doesn't depend on how long exposure has been in-force
+  data = sev_full, 
+  family = Gamma(link = "log")
+)
+
+summary(glm_sev)
+
+freq_sev_pred <- freq_pred %>%
+  mutate(sev_hat = predict(glm_sev, newdata = freq, type = "response"))
 
 #PURE PREM MODEL#####
 #___________________________________________________________________________________________________
 
+#now we have frequency and seveerity saved in freq_sev_pred dataset, all we need to do is to multiply both
+pure_premium_pred <- freq_sev_pred %>%
+  mutate(pp_hat = freq_hat * sev_hat,
+         expected_cost_per_record = pp_hat * Exposure)
+
+#here's how the final table looks like
+head(pure_premium_pred)
+
+#important metrics
+sum(pure_premium_pred$expected_cost_per_record) #58.9M expected total losses under the model
+sum(pure_premium_pred$pp_hat) #121M expected total losses for the year of exposure for this portfolio (e g if we underwrote all of them at once today, how much we'd get)
+
+head(pure_premium_pred)
+
+#CALIBRATE AND VISUALIZE#####
+#___________________________________________________________________________________________________
 
