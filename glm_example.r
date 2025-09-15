@@ -124,7 +124,7 @@ actual_by_pol <- sev %>%
 calib <- pure_premium_pred %>%
   left_join(actual_by_pol, by = "IDpol") %>%
   mutate(actual_total = ifelse(is.na(actual_total), 0, actual_total)) %>%
-  mutate(decile = ntile(pp_hat, 10)) %>%   #rank policies by predicted pure premium. ntile() will split data into 10 groups by pp_hat and assign value to each group in column decile
+  mutate(decile = ntile(expected_cost_per_record, 10)) %>%   #rank policies by predicted pure premium. ntile() will split data into 10 groups by pp_hat and assign value to each group in column decile
   group_by(decile) %>%
   summarise(
     n = n(),
@@ -133,7 +133,7 @@ calib <- pure_premium_pred %>%
     .groups = "drop"
   )
 
-#show comparison by decile of the actual vs predicted (deciles is ordered by predicted pp_hat)
+#show comparison by decile of the actual vs predicted (deciles is ordered by predicted expected_cost_per_record)
 print(calib)
 
 ##Plot#####
