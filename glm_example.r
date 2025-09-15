@@ -36,7 +36,7 @@ rm(freMTPL2sev)  #remove original to avoid clutter
 str(freq)
 #categorical columns are already stored as factors. No need too convert.
 #normally in dataset you'd have categorical values as character, so to be consumed by GLM you'd need
-#to convert them to factors (usually by using "mutate(across(where(is.character), as.factor)")
+#to convert them to factors (usually by using something like this: "mutate(across(where(is.character), as.factor)")
 
 #list column names to identify predictors
 names(freq)
@@ -48,6 +48,7 @@ predictors <- c("VehPower","VehAge","DrivAge","BonusMalus",
 #FREQ MODEL#####
 #___________________________________________________________________________________________________
 
+#model
 glm_pois <- glm(
   as.formula(paste("ClaimNb ~", paste(predictors, collapse = " + "), #our target is ClaimNb, hence it's at the beginning with "~" sign. We're also using paste() with "+" collapse to define our predictors. Feel free to run what's inside as.formula() it will return a string.
                    "+ offset(log(Exposure))")), #we're offsetting by log(Exposure) to account for the fact that the longer policy in force the more chance for a claim
@@ -55,11 +56,14 @@ glm_pois <- glm(
   family = poisson() #default link log
 )
 
-summary(glm_pois) #comprehensive summary of the model including predictor importance (p-values)
+#get the summary of the model including p-values of predictors
+summary(glm_pois)
 
+#dispersion (important to be below 1 when dealing with Poisson glms)
 dispersion_freq <- glm_pois$deviance / glm_pois$df.residual
-dispersion_freq # 0.243 - good
+dispersion_freq # 0.243 - good 
 
+#use model to predict freq_hat
 freq_pred <- freq %>%
   mutate(freq_hat = predict(glm_pois, type = "response") / Exposure)
 
@@ -72,19 +76,22 @@ freq %>%
   duplicated() %>% 
   sum() #result is 0, so no duplicated rows
 
-#then join severity data to our features
+#join severity data to our features
 sev_full <- sev %>%
   inner_join(freq, by = "IDpol") %>%
   filter(ClaimAmount > 0)
 
+#model
 glm_sev <- glm(
   as.formula(paste("ClaimAmount ~", paste(predictors, collapse = " + "))), #note that here we don't need to offset our Exposures since we model severity per claim that already happen and doesn't depend on how long exposure has been in-force
   data = sev_full, 
   family = Gamma(link = "log")
 )
 
+#get the summary of the model including p-values of predictors
 summary(glm_sev)
 
+#use model to predict sev_hat
 freq_sev_pred <- freq_pred %>%
   mutate(sev_hat = predict(glm_sev, newdata = freq, type = "response"))
 
@@ -103,16 +110,17 @@ head(pure_premium_pred)
 sum(pure_premium_pred$expected_cost_per_record) #58.9M expected total losses under the model
 sum(pure_premium_pred$pp_hat) #121M expected total losses for the year of exposure for this portfolio (e g if we underwrote all of them at once today, how much we'd get)
 
-head(pure_premium_pred)
-
-#CALIBRATE AND VISUALIZE#####
+#CALIBRATE#####
 #___________________________________________________________________________________________________
+
+##Calculation#####
 
 #actual total claims
 actual_by_pol <- sev %>%
   group_by(IDpol) %>%
   summarise(actual_total = sum(ClaimAmount), .groups = "drop")
 
+#calculation
 calib <- pure_premium_pred %>%
   left_join(actual_by_pol, by = "IDpol") %>%
   mutate(actual_total = ifelse(is.na(actual_total), 0, actual_total)) %>%
@@ -125,10 +133,11 @@ calib <- pure_premium_pred %>%
     .groups = "drop"
   )
 
-print(calib) #comparison of the actual vs predicted
+#show comparison by decile of the actual vs predicted (deciles is ordered by predicted pp_hat)
+print(calib)
 
-#calibration chart
-#to see if our model is consistently over or underpredicting
+##Plot#####
+
 ggplot(calib, aes(x = decile)) +
   geom_line(aes(y = avg_pred), colour = "blue", linewidth = 1) +
   geom_point(aes(y = avg_pred),  colour = "blue") +
@@ -142,4 +151,7 @@ ggplot(calib, aes(x = decile)) +
                Solid Blue = Predicted"
   )
 
-#thsi is it for this script, hope you found it helpful.
+#model is not consistently over or under-predicting. Good first step.
+
+#END#####
+#___________________________________________________________________________________________________
