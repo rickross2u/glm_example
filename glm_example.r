@@ -115,15 +115,31 @@ actual_by_pol <- sev %>%
 
 calib <- pure_premium_pred %>%
   left_join(actual_by_pol, by = "IDpol") %>%
-  mutate(actual_total = ifelse(is.na(actual_total), 0, actual_total),
-         actual_losscost = actual_total / Exposure) %>%
+  mutate(actual_total = ifelse(is.na(actual_total), 0, actual_total)) %>%
   mutate(decile = ntile(pp_hat, 10)) %>%   #rank policies by predicted pure premium. ntile() will split data into 10 groups by pp_hat and assign value to each group in column decile
   group_by(decile) %>%
   summarise(
     n = n(),
-    avg_pred = mean(pp_hat),
-    avg_actual = mean(actual_losscost),
+    avg_actual = mean(actual_total),
+    avg_pred = mean(expected_cost_per_record),
     .groups = "drop"
   )
 
-print(calib)
+print(calib) #comparison of the actual vs predicted
+
+#calibration chart
+#to see if our model is consistently over or underpredicting
+ggplot(calib, aes(x = decile)) +
+  geom_line(aes(y = avg_pred), colour = "blue", linewidth = 1) +
+  geom_point(aes(y = avg_pred),  colour = "blue") +
+  geom_line(aes(y = avg_actual),  colour = "red", linetype = 2) +
+  geom_point(aes(y = avg_actual), colour = "red") +
+  labs(
+    title = "Calibration chart (actual vs predicted PP)",
+    x = "Decile (low -> high predicted PP)",
+    y = "Loss cost (not exposure-adjusted)",
+    caption = "Dashed Red = Actual
+               Solid Blue = Predicted"
+  )
+
+#thsi is it for this script, hope you found it helpful.
