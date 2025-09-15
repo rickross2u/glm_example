@@ -108,3 +108,22 @@ head(pure_premium_pred)
 #CALIBRATE AND VISUALIZE#####
 #___________________________________________________________________________________________________
 
+#actual total claims
+actual_by_pol <- sev %>%
+  group_by(IDpol) %>%
+  summarise(actual_total = sum(ClaimAmount), .groups = "drop")
+
+calib <- pure_premium_pred %>%
+  left_join(actual_by_pol, by = "IDpol") %>%
+  mutate(actual_total = ifelse(is.na(actual_total), 0, actual_total),
+         actual_losscost = actual_total / Exposure) %>%
+  mutate(decile = ntile(pp_hat, 10)) %>%   #rank policies by predicted pure premium. ntile() will split data into 10 groups by pp_hat and assign value to each group in column decile
+  group_by(decile) %>%
+  summarise(
+    n = n(),
+    avg_pred = mean(pp_hat),
+    avg_actual = mean(actual_losscost),
+    .groups = "drop"
+  )
+
+print(calib)
